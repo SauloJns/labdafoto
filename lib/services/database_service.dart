@@ -20,8 +20,10 @@ class DatabaseService {
 
     return await openDatabase(
       path,
-      version: 1,
+      version: 3, // ATUALIZADO: nova versão
       onCreate: _createDB,
+      onUpgrade: _migrateDB,
+      onDowngrade: onDatabaseDowngradeDelete, // NOVO: permite downgrade
     );
   }
 
@@ -30,34 +32,86 @@ class DatabaseService {
       CREATE TABLE tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
-        description TEXT,
+        description TEXT NOT NULL,
+        priority TEXT NOT NULL,
         completed INTEGER NOT NULL DEFAULT 0,
-        priority TEXT NOT NULL DEFAULT 'medium',
-        created_at INTEGER NOT NULL
+        created_at INTEGER NOT NULL,
+        photo_path TEXT,
+        completed_at INTEGER,
+        completed_by TEXT,
+        latitude REAL,
+        longitude REAL,
+        location_name TEXT,
+        due_date INTEGER -- NOVO CAMPO
       )
     ''');
 
-    // Inserir tarefas de exemplo
     await _insertSampleTasks(db);
+  }
+
+  Future<void> _migrateDB(Database db, int oldVersion, int newVersion) async {
+    // Migração da versão 1 para 2
+    if (oldVersion < 2) {
+      try {
+        await _addColumnIfNotExists(db, 'tasks', 'photo_path', 'TEXT');
+        await _addColumnIfNotExists(db, 'tasks', 'completed_at', 'INTEGER');
+        await _addColumnIfNotExists(db, 'tasks', 'completed_by', 'TEXT');
+        await _addColumnIfNotExists(db, 'tasks', 'latitude', 'REAL');
+        await _addColumnIfNotExists(db, 'tasks', 'longitude', 'REAL');
+        await _addColumnIfNotExists(db, 'tasks', 'location_name', 'TEXT');
+      } catch (e) {
+        print('Erro na migração v1->v2: $e');
+      }
+    }
+    
+    // Migração da versão 2 para 3
+    if (oldVersion < 3) {
+      try {
+        await _addColumnIfNotExists(db, 'tasks', 'due_date', 'INTEGER');
+      } catch (e) {
+        print('Erro na migração v2->v3: $e');
+      }
+    }
+  }
+
+  // NOVO: Método auxiliar para adicionar colunas apenas se não existirem
+  Future<void> _addColumnIfNotExists(
+    Database db, 
+    String table, 
+    String column, 
+    String type
+  ) async {
+    // Verifica se a coluna já existe
+    final columns = await db.rawQuery('PRAGMA table_info($table)');
+    final columnExists = columns.any((col) => col['name'] == column);
+    
+    if (!columnExists) {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+      print('Coluna $column adicionada à tabela $table');
+    } else {
+      print('Coluna $column já existe na tabela $table');
+    }
   }
 
   Future<void> _insertSampleTasks(Database db) async {
     final sampleTasks = [
       Task(
-        title: 'Bem-vindo ao Task Manager!',
+        title: 'Bem-vindo ao Task Manager Pro!',
         description: 'Esta é sua primeira tarefa. Toque para editar ou marcar como concluída.',
         priority: 'medium',
+        dueDate: DateTime.now().add(const Duration(days: 7)), // EXEMPLO
       ),
       Task(
-        title: 'Estudar Flutter',
-        description: 'Aprender sobre widgets e estado',
+        title: 'Estudar Flutter - Recursos Nativos',
+        description: 'Aprender sobre câmera, sensores e GPS',
         priority: 'high',
+        dueDate: DateTime.now().add(const Duration(days: 2)),
       ),
       Task(
-        title: 'Fazer compras',
-        description: 'Comprar itens para casa',
-        priority: 'low',
-        completed: true,
+        title: 'Testar funcionalidade de Shake',
+        description: 'Sacuda o celular para completar tarefas rapidamente!',
+        priority: 'urgent',
+        dueDate: DateTime.now().add(const Duration(days: 1)),
       ),
     ];
 
@@ -66,13 +120,14 @@ class DatabaseService {
     }
   }
 
+  // MÉTODOS EXISTENTES (mantidos iguais)...
   Future<Task> create(Task task) async {
     final db = await database;
     final id = await db.insert('tasks', task.toMap());
     return task.copyWith(id: id);
   }
 
-  Future<Task> read(int id) async {
+  Future<Task?> read(int id) async {
     final db = await database;
     final maps = await db.query(
       'tasks',
@@ -82,25 +137,68 @@ class DatabaseService {
 
     if (maps.isNotEmpty) {
       return Task.fromMap(maps.first);
-    } else {
-      throw Exception('ID $id not found');
     }
+    return null;
   }
 
+  // NOVO: Ordenar por data de vencimento
   Future<List<Task>> readAll() async {
     final db = await database;
-    final orderBy = 'created_at DESC';
+    final orderBy = '''
+      CASE 
+        WHEN completed = 1 THEN 2
+        WHEN due_date IS NULL THEN 1
+        ELSE 0
+      END,
+      due_date ASC,
+      created_at DESC
+    ''';
+    
     final result = await db.query('tasks', orderBy: orderBy);
     return result.map((json) => Task.fromMap(json)).toList();
   }
 
   Future<List<Task>> readByStatus(bool completed) async {
     final db = await database;
+    final orderBy = completed 
+        ? 'completed_at DESC'
+        : 'due_date ASC, created_at DESC';
+        
     final result = await db.query(
       'tasks',
       where: 'completed = ?',
       whereArgs: [completed ? 1 : 0],
-      orderBy: 'created_at DESC',
+      orderBy: orderBy,
+    );
+    return result.map((json) => Task.fromMap(json)).toList();
+  }
+
+  // NOVO: Buscar tarefas vencidas
+  Future<List<Task>> getOverdueTasks() async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    
+    final result = await db.query(
+      'tasks',
+      where: 'completed = 0 AND due_date IS NOT NULL AND due_date < ?',
+      whereArgs: [now],
+      orderBy: 'due_date ASC',
+    );
+    return result.map((json) => Task.fromMap(json)).toList();
+  }
+
+  // NOVO: Buscar tarefas que vencem hoje
+  Future<List<Task>> getDueTodayTasks() async {
+    final db = await database;
+    final now = DateTime.now();
+    final startOfDay = DateTime(now.year, now.month, now.day).millisecondsSinceEpoch;
+    final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59).millisecondsSinceEpoch;
+    
+    final result = await db.query(
+      'tasks',
+      where: 'completed = 0 AND due_date IS NOT NULL AND due_date BETWEEN ? AND ?',
+      whereArgs: [startOfDay, endOfDay],
+      orderBy: 'due_date ASC',
     );
     return result.map((json) => Task.fromMap(json)).toList();
   }
@@ -124,11 +222,6 @@ class DatabaseService {
     );
   }
 
-  Future<int> deleteAll() async {
-    final db = await database;
-    return await db.delete('tasks');
-  }
-
   Future<int> getTaskCount() async {
     final db = await database;
     final result = await db.rawQuery('SELECT COUNT(*) FROM tasks');
@@ -141,6 +234,36 @@ class DatabaseService {
       'SELECT COUNT(*) FROM tasks WHERE completed = 1'
     );
     return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  // NOVO: Contar tarefas vencidas
+  Future<int> getOverdueCount() async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) FROM tasks WHERE completed = 0 AND due_date IS NOT NULL AND due_date < ?',
+      [now]
+    );
+    return Sqflite.firstIntValue(result) ?? 0;
+  }
+
+  Future<List<Task>> getTasksNearLocation({
+    required double latitude,
+    required double longitude,
+    double radiusInMeters = 1000,
+  }) async {
+    final allTasks = await readAll();
+    
+    return allTasks.where((task) {
+      if (!task.hasLocation) return false;
+      
+      final latDiff = (task.latitude! - latitude).abs();
+      final lonDiff = (task.longitude! - longitude).abs();
+      final distance = ((latDiff * 111000) + (lonDiff * 111000)) / 2;
+      
+      return distance <= radiusInMeters;
+    }).toList();
   }
 
   Future<void> close() async {

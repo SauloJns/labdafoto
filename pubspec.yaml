@@ -1,6 +1,8 @@
 name: task_manager
-description: Aplicativo de gerenciamento de tarefas com Flutter
+description: "Aplicativo de gerenciamento de tarefas com recursos nativos"
+
 publish_to: 'none'
+
 version: 1.0.0+1
 
 environment:
@@ -9,14 +11,28 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
+  # Banco de dados
   sqflite: ^2.3.0
   path: ^1.8.3
-  intl: ^0.18.1
+  
+  # Recursos nativos - AULA 3
+  camera: ^0.10.5
+  permission_handler: ^12.0.1
+  sensors_plus: ^7.0.0
+  vibration: ^3.1.4
+  geolocator: ^11.0.1
+  geocoding: ^2.1.1
+  path_provider: ^2.1.1
+  
+  # Funcionalidades extras
+  image_picker: ^1.1.2        # Galeria de fotos
+  share_plus: ^7.2.1          # Compartilhamento
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^4.0.0
 
 flutter:
   uses-material-design: true
