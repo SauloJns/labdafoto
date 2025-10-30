@@ -38,9 +38,8 @@ class _TaskListScreenState extends State<TaskListScreen> {
     });
   }
 
-  // NOVO: Verificar tarefas vencidas ao iniciar
   void _checkOverdueTasks() async {
-    await Future.delayed(const Duration(seconds: 1)); // Aguardar carregamento
+    await Future.delayed(const Duration(seconds: 1));
     
     final overdueTasks = await DatabaseService.instance.getOverdueTasks();
     
@@ -211,7 +210,7 @@ class _TaskListScreenState extends State<TaskListScreen> {
       'total': total,
       'completed': completed,
       'pending': pending,
-      'overdue': overdue, // NOVO
+      'overdue': overdue,
     };
   }
 
@@ -296,7 +295,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
     }
   }
 
-  // NOVO: Formatar data
   String _formatDate(DateTime date) {
     return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
   }
@@ -312,7 +310,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         actions: [
-          // NOVO: Indicador de tarefas vencidas
           if (stats['overdue']! > 0)
             Padding(
               padding: const EdgeInsets.only(right: 8),
@@ -369,7 +366,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
             ? const Center(child: CircularProgressIndicator())
             : Column(
                 children: [
-                  // CARD DE ESTATÍSTICAS (ATUALIZADO)
                   Container(
                     margin: const EdgeInsets.all(16),
                     padding: const EdgeInsets.all(20),
@@ -414,7 +410,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
                           value: stats['pending'].toString(),
                           icon: Icons.pending_actions,
                         ),
-                        // NOVO: Estatística de vencidas
                         if (stats['overdue']! > 0) ...[
                           Container(
                             width: 1,
@@ -432,7 +427,6 @@ class _TaskListScreenState extends State<TaskListScreen> {
                     ),
                   ),
 
-                  // LISTA DE TAREFAS
                   Expanded(
                     child: filteredTasks.isEmpty
                         ? _buildEmptyState()

@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:share_plus/share_plus.dart'; // NOVO
+import 'package:share_plus/share_plus.dart';
 import '../models/task.dart';
 
 class TaskCard extends StatelessWidget {
@@ -62,12 +62,11 @@ class TaskCard extends StatelessWidget {
     }
   }
 
-  // NOVO: Método para compartilhar
   Future<void> _shareTask() async {
     try {
       await Share.share(task.shareText);
     } catch (e) {
-      // Erro silencioso - não mostra mensagem
+      // Erro silencioso
     }
   }
 
@@ -110,7 +109,6 @@ class TaskCard extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // TÍTULO COM INDICADOR DE VENCIMENTO
                         Row(
                           children: [
                             Expanded(
@@ -155,7 +153,6 @@ class TaskCard extends StatelessWidget {
                           ),
                         ],
                         
-                        // NOVO: INFO DE VENCIMENTO
                         if (task.dueDate != null && !task.completed) ...[
                           const SizedBox(height: 8),
                           Container(
@@ -194,12 +191,10 @@ class TaskCard extends StatelessWidget {
                         
                         const SizedBox(height: 8),
                         
-                        // BADGES
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
                           children: [
-                            // Prioridade
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
@@ -233,8 +228,7 @@ class TaskCard extends StatelessWidget {
                               ),
                             ),
                             
-                            // Foto
-                            if (task.hasPhoto)
+                            if (task.hasPhotos)
                               Container(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -247,18 +241,18 @@ class TaskCard extends StatelessWidget {
                                     color: Colors.blue.withOpacity(0.5),
                                   ),
                                 ),
-                                child: const Row(
+                                child: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
-                                      Icons.photo_camera,
+                                    const Icon(
+                                      Icons.photo_library,
                                       size: 14,
                                       color: Colors.blue,
                                     ),
-                                    SizedBox(width: 4),
+                                    const SizedBox(width: 4),
                                     Text(
-                                      'Foto',
-                                      style: TextStyle(
+                                      '${task.photoPaths.length}',
+                                      style: const TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                         color: Colors.blue,
@@ -268,7 +262,6 @@ class TaskCard extends StatelessWidget {
                                 ),
                               ),
                             
-                            // Localização
                             if (task.hasLocation)
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -303,7 +296,6 @@ class TaskCard extends StatelessWidget {
                                 ),
                               ),
                             
-                            // Shake
                             if (task.completed && task.wasCompletedByShake)
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -343,10 +335,8 @@ class TaskCard extends StatelessWidget {
                     ),
                   ),
                   
-                  // BOTÕES DE AÇÃO
                   Column(
                     children: [
-                      // NOVO: Botão de compartilhar
                       IconButton(
                         onPressed: _shareTask,
                         icon: const Icon(Icons.share),
@@ -367,42 +357,18 @@ class TaskCard extends StatelessWidget {
               ),
             ),
             
-            // PREVIEW DA FOTO
-            if (task.hasPhoto)
-              ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(12),
-                  bottomRight: Radius.circular(12),
-                ),
-                child: Image.file(
-                  File(task.photoPath!),
-                  width: double.infinity,
-                  height: 180,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 180,
-                      color: Colors.grey[200],
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.broken_image_outlined,
-                            size: 48,
-                            color: Colors.grey[400],
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Foto não encontrada',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 14,
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+            if (task.hasPhotos)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: SizedBox(
+                  height: 100,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: task.photoPaths.length,
+                    itemBuilder: (context, index) {
+                      return _buildPhotoPreview(task.photoPaths[index], index, context);
+                    },
+                  ),
                 ),
               ),
           ],
@@ -411,7 +377,36 @@ class TaskCard extends StatelessWidget {
     );
   }
 
-  // NOVO: Cor baseada na data de vencimento
+  Widget _buildPhotoPreview(String path, int index, BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.file(
+          File(path),
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            return Container(
+              color: Colors.grey[200],
+              child: const Icon(
+                Icons.broken_image_outlined,
+                color: Colors.grey,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Color _getDueDateColor() {
     if (task.completed) return Colors.green;
     if (task.isOverdue) return Colors.red;
@@ -420,7 +415,6 @@ class TaskCard extends StatelessWidget {
     return Colors.green;
   }
 
-  // NOVO: Texto baseado na data de vencimento
   String _getDueDateText() {
     if (task.completed) return 'Concluída';
     if (task.isOverdue) {

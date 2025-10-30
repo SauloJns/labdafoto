@@ -33,7 +33,6 @@ class CameraService {
 
   bool get hasCameras => _cameras != null && _cameras!.isNotEmpty;
 
-  // MÉTODO EXISTENTE - CÂMERA
   Future<String?> takePicture(BuildContext context) async {
     if (!hasCameras) {
       if (context.mounted) {
@@ -98,18 +97,9 @@ class CameraService {
     }
   }
 
-  // NOVO MÉTODO: SELECIONAR DA GALERIA - CORRIGIDO
   Future<String?> pickFromGallery(BuildContext context) async {
     try {
-      // Para Android 10, usar storage em vez de photos
-      PermissionStatus status;
-      
-      // Verificar se é Android 13+ ou inferior
-      if (await _isAndroid13OrAbove()) {
-        status = await Permission.photos.request();
-      } else {
-        status = await Permission.storage.request();
-      }
+      PermissionStatus status = await Permission.storage.request();
       
       if (status.isDenied) {
         if (context.mounted) {
@@ -166,14 +156,67 @@ class CameraService {
     }
   }
 
-  // Método auxiliar para verificar versão do Android
-  Future<bool> _isAndroid13OrAbove() async {
+  Future<List<String>?> pickMultipleFromGallery(BuildContext context) async {
     try {
-      // Para Flutter, podemos verificar via platform
-      // Como é complexo, vamos assumir que não é Android 13+
-      return false;
+      final PermissionStatus status = await Permission.storage.request();
+      
+      if (status.isDenied) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Permissão de armazenamento necessária'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return null;
+      }
+      
+      if (status.isPermanentlyDenied) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Permissão negada permanentemente. Abra as configurações.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        await openAppSettings();
+        return null;
+      }
+
+      final List<XFile>? images = await _imagePicker.pickMultiImage(
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (images != null && images.isNotEmpty) {
+        final List<String> savedPaths = [];
+        
+        for (final image in images) {
+          final String savedPath = await savePicture(image);
+          savedPaths.add(savedPath);
+        }
+        
+        return savedPaths;
+      }
+      
+      return null;
     } catch (e) {
-      return false;
+      print('❌ Erro ao selecionar múltiplas fotos: $e');
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao selecionar fotos: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      
+      return null;
     }
   }
 

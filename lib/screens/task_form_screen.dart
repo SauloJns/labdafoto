@@ -5,6 +5,8 @@ import '../services/database_service.dart';
 import '../services/camera_service.dart';
 import '../services/location_service.dart';
 import '../widgets/location_picker.dart';
+import '../widgets/photo_gallery.dart';
+import '../screens/photo_viewer_screen.dart';
 
 class TaskFormScreen extends StatefulWidget {
   final Task? task;
@@ -24,15 +26,10 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
   bool _completed = false;
   bool _isLoading = false;
   
-  // CÂMERA
-  String? _photoPath;
-  
-  // GPS
+  List<String> _photoPaths = [];
   double? _latitude;
   double? _longitude;
   String? _locationName;
-  
-  // NOVO: Data de vencimento
   DateTime? _dueDate;
 
   @override
@@ -44,7 +41,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _descriptionController.text = widget.task!.description;
       _priority = widget.task!.priority;
       _completed = widget.task!.completed;
-      _photoPath = widget.task!.photoPath;
+      _photoPaths = List.from(widget.task!.photoPaths);
       _latitude = widget.task!.latitude;
       _longitude = widget.task!.longitude;
       _locationName = widget.task!.locationName;
@@ -59,16 +56,15 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     super.dispose();
   }
 
-  // CÂMERA METHODS
   Future<void> _takePicture() async {
     final photoPath = await CameraService.instance.takePicture(context);
     
     if (photoPath != null && mounted) {
-      setState(() => _photoPath = photoPath);
+      setState(() => _photoPaths.add(photoPath));
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('📷 Foto capturada!'),
+          content: Text('📷 Foto capturada e adicionada!'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -76,16 +72,15 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     }
   }
 
-  // NOVO MÉTODO: SELECIONAR DA GALERIA
   Future<void> _pickFromGallery() async {
     final photoPath = await CameraService.instance.pickFromGallery(context);
     
     if (photoPath != null && mounted) {
-      setState(() => _photoPath = photoPath);
+      setState(() => _photoPaths.add(photoPath));
       
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('🖼️ Foto selecionada da galeria!'),
+          content: Text('🖼️ Foto adicionada da galeria!'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -93,36 +88,76 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     }
   }
 
-  void _removePhoto() {
-    setState(() => _photoPath = null);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('🗑️ Foto removida')),
-    );
+  Future<void> _pickMultipleFromGallery() async {
+    final List<String>? photoPaths = await CameraService.instance.pickMultipleFromGallery(context);
+    
+    if (photoPaths != null && photoPaths.isNotEmpty && mounted) {
+      setState(() => _photoPaths.addAll(photoPaths));
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🖼️ ${photoPaths.length} foto(s) adicionada(s)!'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
-  void _viewPhoto() {
-    if (_photoPath == null) return;
+  void _removePhoto(int index) {
+    if (index >= 0 && index < _photoPaths.length) {
+      setState(() {
+        _photoPaths.removeAt(index);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('🗑️ Foto removida')),
+      );
+    }
+  }
+
+  void _viewPhoto(int index) {
+    if (index < 0 || index >= _photoPaths.length) return;
     
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => Scaffold(
-          backgroundColor: Colors.black,
-          appBar: AppBar(
-            backgroundColor: Colors.transparent,
-            elevation: 0,
-          ),
-          body: Center(
-            child: InteractiveViewer(
-              child: Image.file(File(_photoPath!), fit: BoxFit.contain),
-            ),
-          ),
+        builder: (context) => PhotoViewerScreen(
+          photoPaths: _photoPaths,
+          initialIndex: index,
         ),
       ),
     );
   }
 
-  // GPS METHODS
+  void _clearAllPhotos() {
+    if (_photoPaths.isEmpty) return;
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remover todas as fotos?'),
+        content: Text('Deseja remover todas as ${_photoPaths.length} fotos?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() => _photoPaths.clear());
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('🗑️ Todas as fotos removidas')),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remover Todas'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showLocationPicker() {
     showModalBottomSheet(
       context: context,
@@ -161,7 +196,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     );
   }
 
-  // NOVO: Método para selecionar data de vencimento
   Future<void> _selectDueDate() async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -206,13 +240,12 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
 
     try {
       if (widget.task == null) {
-        // CRIAR
         final newTask = Task(
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
           priority: _priority,
           completed: _completed,
-          photoPath: _photoPath,
+          photoPaths: _photoPaths,
           latitude: _latitude,
           longitude: _longitude,
           locationName: _locationName,
@@ -229,13 +262,12 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           );
         }
       } else {
-        // ATUALIZAR
         final updatedTask = widget.task!.copyWith(
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim(),
           priority: _priority,
           completed: _completed,
-          photoPath: _photoPath,
+          photoPaths: _photoPaths,
           latitude: _latitude,
           longitude: _longitude,
           locationName: _locationName,
@@ -288,7 +320,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // TÍTULO
                     TextFormField(
                       controller: _titleController,
                       decoration: const InputDecoration(
@@ -312,7 +343,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const SizedBox(height: 16),
                     
-                    // DESCRIÇÃO
                     TextFormField(
                       controller: _descriptionController,
                       decoration: const InputDecoration(
@@ -329,7 +359,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const SizedBox(height: 16),
                     
-                    // PRIORIDADE
                     DropdownButtonFormField<String>(
                       value: _priority,
                       decoration: const InputDecoration(
@@ -350,7 +379,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const SizedBox(height: 16),
                     
-                    // NOVO: DATA DE VENCIMENTO
                     Row(
                       children: [
                         const Icon(Icons.calendar_today, color: Colors.blue),
@@ -401,7 +429,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const SizedBox(height: 16),
                     
-                    // SWITCH COMPLETA
                     SwitchListTile(
                       title: const Text('Tarefa Completa'),
                       subtitle: Text(_completed ? 'Sim' : 'Não'),
@@ -416,24 +443,43 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const Divider(height: 32),
                     
-                    // SEÇÃO FOTO - ATUALIZADA COM GALERIA
                     Row(
                       children: [
-                        const Icon(Icons.photo_camera, color: Colors.blue),
+                        const Icon(Icons.photo_library, color: Colors.blue),
                         const SizedBox(width: 8),
                         const Text(
-                          'Foto',
+                          'Fotos',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        if (_photoPaths.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '${_photoPaths.length}',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
                         const Spacer(),
-                        if (_photoPath != null)
+                        if (_photoPaths.isNotEmpty)
                           TextButton.icon(
-                            onPressed: _removePhoto,
+                            onPressed: _clearAllPhotos,
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            label: const Text('Remover'),
+                            label: const Text('Limpar Todas'),
                             style: TextButton.styleFrom(
                               foregroundColor: Colors.red,
                             ),
@@ -443,61 +489,40 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const SizedBox(height: 12),
                     
-                    if (_photoPath != null)
-                      GestureDetector(
-                        onTap: _viewPhoto,
-                        child: Container(
-                          height: 200,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.1),
-                                blurRadius: 8,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: Image.file(
-                              File(_photoPath!),
-                              width: double.infinity,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
+                    PhotoGallery(
+                      photoPaths: _photoPaths,
+                      onPhotoTap: _viewPhoto,
+                      onPhotoDelete: _removePhoto,
+                    ),
+                    
+                    const SizedBox(height: 16),
+                    
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _takePicture,
+                          icon: const Icon(Icons.camera_alt),
+                          label: const Text('Tirar Foto'),
                         ),
-                      )
-                    else
-                      Column(
-                        children: [
-                          // BOTÃO CÂMERA
-                          OutlinedButton.icon(
-                            onPressed: _takePicture,
-                            icon: const Icon(Icons.camera_alt),
-                            label: const Text('Tirar Foto com Câmera'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                          
-                          const SizedBox(height: 12),
-                          
-                          // NOVO BOTÃO: GALERIA
-                          OutlinedButton.icon(
-                            onPressed: _pickFromGallery,
-                            icon: const Icon(Icons.photo_library),
-                            label: const Text('Selecionar da Galeria'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.all(16),
-                            ),
-                          ),
-                        ],
-                      ),
+                        
+                        OutlinedButton.icon(
+                          onPressed: _pickFromGallery,
+                          icon: const Icon(Icons.photo),
+                          label: const Text('Uma Foto'),
+                        ),
+                        
+                        OutlinedButton.icon(
+                          onPressed: _pickMultipleFromGallery,
+                          icon: const Icon(Icons.photo_library),
+                          label: const Text('Múltiplas'),
+                        ),
+                      ],
+                    ),
                     
                     const Divider(height: 32),
                     
-                    // SEÇÃO LOCALIZAÇÃO
                     Row(
                       children: [
                         const Icon(Icons.location_on, color: Colors.blue),
@@ -553,7 +578,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const SizedBox(height: 32),
                     
-                    // BOTÃO SALVAR
                     ElevatedButton.icon(
                       onPressed: _isLoading ? null : _saveTask,
                       icon: const Icon(Icons.save),
@@ -575,7 +599,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     );
   }
 
-  // NOVO: Formatar data
   String _formatDate(DateTime date) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
@@ -590,7 +613,6 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     }
   }
 
-  // NOVO: Status da data de vencimento
   Widget _buildDueDateStatus() {
     if (_dueDate == null) return const SizedBox.shrink();
     

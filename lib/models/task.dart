@@ -6,15 +6,12 @@ class Task {
   final String priority;
   final DateTime createdAt;
   
-  // NOVOS CAMPOS AULA 3
-  final String? photoPath;
+  final List<String> photoPaths;
   final DateTime? completedAt;
   final String? completedBy;
   final double? latitude;
   final double? longitude;
   final String? locationName;
-  
-  // NOVO CAMPO: Data de vencimento
   final DateTime? dueDate;
 
   Task({
@@ -24,21 +21,20 @@ class Task {
     this.completed = false,
     this.priority = 'medium',
     DateTime? createdAt,
-    this.photoPath,
+    List<String>? photoPaths,
     this.completedAt,
     this.completedBy,
     this.latitude,
     this.longitude,
     this.locationName,
-    this.dueDate, // NOVO
-  }) : createdAt = createdAt ?? DateTime.now();
+    this.dueDate,
+  }) : createdAt = createdAt ?? DateTime.now(),
+       photoPaths = photoPaths ?? [];
 
-  // GETTERS AUXILIARES
-  bool get hasPhoto => photoPath != null && photoPath!.isNotEmpty;
+  bool get hasPhotos => photoPaths.isNotEmpty;
   bool get hasLocation => latitude != null && longitude != null;
   bool get wasCompletedByShake => completedBy == 'shake';
   
-  // NOVOS GETTERS
   bool get isOverdue => !completed && dueDate != null && dueDate!.isBefore(DateTime.now());
   bool get isDueToday => !completed && dueDate != null && 
       dueDate!.year == DateTime.now().year &&
@@ -56,13 +52,13 @@ class Task {
       'completed': completed ? 1 : 0,
       'priority': priority,
       'created_at': createdAt.millisecondsSinceEpoch,
-      'photo_path': photoPath,
+      'photo_paths': photoPaths.join('|||'),
       'completed_at': completedAt?.millisecondsSinceEpoch,
       'completed_by': completedBy,
       'latitude': latitude,
       'longitude': longitude,
       'location_name': locationName,
-      'due_date': dueDate?.millisecondsSinceEpoch, // NOVO
+      'due_date': dueDate?.millisecondsSinceEpoch,
     };
   }
 
@@ -74,7 +70,9 @@ class Task {
       completed: map['completed'] == 1,
       priority: map['priority'],
       createdAt: DateTime.fromMillisecondsSinceEpoch(map['created_at']),
-      photoPath: map['photo_path'],
+      photoPaths: map['photo_paths'] != null
+          ? (map['photo_paths'] as String).split('|||')
+          : [],
       completedAt: map['completed_at'] != null 
           ? DateTime.fromMillisecondsSinceEpoch(map['completed_at'])
           : null,
@@ -82,7 +80,7 @@ class Task {
       latitude: map['latitude'],
       longitude: map['longitude'],
       locationName: map['location_name'],
-      dueDate: map['due_date'] != null // NOVO
+      dueDate: map['due_date'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['due_date'])
           : null,
     );
@@ -95,13 +93,13 @@ class Task {
     bool? completed,
     String? priority,
     DateTime? createdAt,
-    String? photoPath,
+    List<String>? photoPaths,
     DateTime? completedAt,
     String? completedBy,
     double? latitude,
     double? longitude,
     String? locationName,
-    DateTime? dueDate, // NOVO
+    DateTime? dueDate,
   }) {
     return Task(
       id: id ?? this.id,
@@ -110,17 +108,16 @@ class Task {
       completed: completed ?? this.completed,
       priority: priority ?? this.priority,
       createdAt: createdAt ?? this.createdAt,
-      photoPath: photoPath ?? this.photoPath,
+      photoPaths: photoPaths ?? this.photoPaths,
       completedAt: completedAt ?? this.completedAt,
       completedBy: completedBy ?? this.completedBy,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       locationName: locationName ?? this.locationName,
-      dueDate: dueDate ?? this.dueDate, // NOVO
+      dueDate: dueDate ?? this.dueDate,
     );
   }
 
-  // MÉTODO PARA COMPARTILHAR
   String get shareText {
     final buffer = StringBuffer();
     
@@ -159,6 +156,10 @@ class Task {
       buffer.writeln('📍 Local: $locationName');
     }
     
+    if (hasPhotos) {
+      buffer.writeln('📸 Fotos: ${photoPaths.length} anexada(s)');
+    }
+    
     if (completed && completedAt != null) {
       buffer.writeln('✅ Concluída em: ${_formatDate(completedAt!)}');
     }
@@ -185,6 +186,6 @@ class Task {
 
   @override
   String toString() {
-    return 'Task(id: $id, title: $title, completed: $completed, priority: $priority, dueDate: $dueDate)';
+    return 'Task(id: $id, title: $title, completed: $completed, priority: $priority, photos: ${photoPaths.length})';
   }
 }
