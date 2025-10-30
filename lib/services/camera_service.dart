@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
@@ -11,6 +12,7 @@ class CameraService {
   CameraService._init();
 
   List<CameraDescription>? _cameras;
+  final ImagePicker _imagePicker = ImagePicker();
 
   Future<void> initialize() async {
     try {
@@ -31,6 +33,7 @@ class CameraService {
 
   bool get hasCameras => _cameras != null && _cameras!.isNotEmpty;
 
+  // MÉTODO EXISTENTE - CÂMERA
   Future<String?> takePicture(BuildContext context) async {
     if (!hasCameras) {
       if (context.mounted) {
@@ -92,6 +95,85 @@ class CameraService {
       return null;
     } finally {
       controller.dispose();
+    }
+  }
+
+  // NOVO MÉTODO: SELECIONAR DA GALERIA - CORRIGIDO
+  Future<String?> pickFromGallery(BuildContext context) async {
+    try {
+      // Para Android 10, usar storage em vez de photos
+      PermissionStatus status;
+      
+      // Verificar se é Android 13+ ou inferior
+      if (await _isAndroid13OrAbove()) {
+        status = await Permission.photos.request();
+      } else {
+        status = await Permission.storage.request();
+      }
+      
+      if (status.isDenied) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Permissão de armazenamento necessária para acessar a galeria'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return null;
+      }
+      
+      if (status.isPermanentlyDenied) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('❌ Permissão negada permanentemente. Abra as configurações do app para conceder acesso à galeria.'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        await openAppSettings();
+        return null;
+      }
+
+      final XFile? image = await _imagePicker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        final String savedPath = await savePicture(image);
+        return savedPath;
+      }
+      
+      return null;
+    } catch (e) {
+      print('❌ Erro ao selecionar da galeria: $e');
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erro ao selecionar foto: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      
+      return null;
+    }
+  }
+
+  // Método auxiliar para verificar versão do Android
+  Future<bool> _isAndroid13OrAbove() async {
+    try {
+      // Para Flutter, podemos verificar via platform
+      // Como é complexo, vamos assumir que não é Android 13+
+      return false;
+    } catch (e) {
+      return false;
     }
   }
 

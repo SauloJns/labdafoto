@@ -26,7 +26,7 @@ dependencies:
   path_provider: ^2.1.1
   
   # Funcionalidades extras
-  image_picker: ^1.1.2        # Galeria de fotos
+  image_picker: ^1.1.2        # GALERIA DE FOTOS - NOVO
   share_plus: ^7.2.1          # Compartilhamento
 
 dev_dependencies:

@@ -48,7 +48,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       _latitude = widget.task!.latitude;
       _longitude = widget.task!.longitude;
       _locationName = widget.task!.locationName;
-      _dueDate = widget.task!.dueDate; // NOVO
+      _dueDate = widget.task!.dueDate;
     }
   }
 
@@ -59,7 +59,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     super.dispose();
   }
 
-  // CÂMERA METHODS (mantidos iguais)...
+  // CÂMERA METHODS
   Future<void> _takePicture() async {
     final photoPath = await CameraService.instance.takePicture(context);
     
@@ -69,6 +69,23 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('📷 Foto capturada!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  // NOVO MÉTODO: SELECIONAR DA GALERIA
+  Future<void> _pickFromGallery() async {
+    final photoPath = await CameraService.instance.pickFromGallery(context);
+    
+    if (photoPath != null && mounted) {
+      setState(() => _photoPath = photoPath);
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('🖼️ Foto selecionada da galeria!'),
           backgroundColor: Colors.green,
           duration: Duration(seconds: 2),
         ),
@@ -105,7 +122,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
     );
   }
 
-  // GPS METHODS (mantidos iguais)...
+  // GPS METHODS
   void _showLocationPicker() {
     showModalBottomSheet(
       context: context,
@@ -199,7 +216,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           latitude: _latitude,
           longitude: _longitude,
           locationName: _locationName,
-          dueDate: _dueDate, // NOVO
+          dueDate: _dueDate,
         );
         await DatabaseService.instance.create(newTask);
         
@@ -222,7 +239,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
           latitude: _latitude,
           longitude: _longitude,
           locationName: _locationName,
-          dueDate: _dueDate, // NOVO
+          dueDate: _dueDate,
         );
         await DatabaseService.instance.update(updatedTask);
         
@@ -399,7 +416,7 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                     
                     const Divider(height: 32),
                     
-                    // SEÇÃO FOTO (mantida igual)...
+                    // SEÇÃO FOTO - ATUALIZADA COM GALERIA
                     Row(
                       children: [
                         const Icon(Icons.photo_camera, color: Colors.blue),
@@ -452,18 +469,35 @@ class _TaskFormScreenState extends State<TaskFormScreen> {
                         ),
                       )
                     else
-                      OutlinedButton.icon(
-                        onPressed: _takePicture,
-                        icon: const Icon(Icons.camera_alt),
-                        label: const Text('Tirar Foto'),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.all(16),
-                        ),
+                      Column(
+                        children: [
+                          // BOTÃO CÂMERA
+                          OutlinedButton.icon(
+                            onPressed: _takePicture,
+                            icon: const Icon(Icons.camera_alt),
+                            label: const Text('Tirar Foto com Câmera'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                          
+                          const SizedBox(height: 12),
+                          
+                          // NOVO BOTÃO: GALERIA
+                          OutlinedButton.icon(
+                            onPressed: _pickFromGallery,
+                            icon: const Icon(Icons.photo_library),
+                            label: const Text('Selecionar da Galeria'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.all(16),
+                            ),
+                          ),
+                        ],
                       ),
                     
                     const Divider(height: 32),
                     
-                    // SEÇÃO LOCALIZAÇÃO (mantida igual)...
+                    // SEÇÃO LOCALIZAÇÃO
                     Row(
                       children: [
                         const Icon(Icons.location_on, color: Colors.blue),
